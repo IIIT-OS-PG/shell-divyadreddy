@@ -1,0 +1,9 @@
+PATH /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+HOME /home/divya
+USER divya
+HOSTNAME HOSTNAME
+PS1 root # user $
+HISTSIZE 15
+alias l=ls
+alias k=cat abc.txt
+end
