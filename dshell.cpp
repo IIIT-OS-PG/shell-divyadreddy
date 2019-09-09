@@ -11,13 +11,17 @@ void initialise();
 // int * histsize, map<char*, char* > &env)
 
 char** input_cmd();//queue<char*> &history);
-
+char *open_app(char* command);
+char *matchExt(char *ext);
+void alarm();
+void prompt();
 
 int histsize;
 
 map<char *, char *> env;
 map<char *, char *> alias;
 int histfd;
+int root = 0;
 
 queue<char *> history;
 
@@ -33,8 +37,9 @@ int main()
     // tcsetattr(0, TCSANOW, &mode);
     
       int status = 0;
+      
+      alarm();
       initialise();
-
     while(true)
     {
         
@@ -145,6 +150,12 @@ int main()
                 status = 0;
             }
         }
+        else if(j==2 && (strcmp(vect[0],"sudo")==0 && strcmp(vect[1],"su")==0))
+        {   
+            root = 1;
+            status = 0;
+        }
+        // else 
         else if (j==2 && strcmp("cd", vect[0])==0)
         {
             int lpath = strlen(vect[1]);
@@ -221,6 +232,7 @@ int main()
         }
         else if(strcmp(vect[0],"")==0)
         {
+          printf("here\n");
             continue;
         }
         else
@@ -397,12 +409,18 @@ char **input_cmd()
   {
     history.pop();
   }
-
-  printf("divya$ ");
+  
+  // printf("divya$ ");
+  prompt();
   fgets(cmd, 1000, stdin);
   // scanf("%[^\n]s",cmd);
   //string scmd = cmd;
   int cmd_len = strlen(cmd);
+  if(cmd_len>5 && strncmp(cmd,"open", 4)==0)
+        {   
+            open_app(cmd);
+            return NULL;
+        }
   cmd_len--; // for fgets
   int flag = 0, space_count = 1;
   int start = 0;
@@ -570,4 +588,156 @@ char **input_cmd()
     printf("%s\n", vect[i]);
   }
   return vect;
+}
+
+
+#include <stdio.h>
+#include <string.h>
+
+char *matchExt(char *ext) {
+  FILE *config = fopen("openvid.txt", "rw");
+  char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+	char *parser;
+	
+  if (config != NULL) {
+  	while ((read = getline(&line, &len, config)) != -1) {
+  	  parser = strtok(line, " ");
+  	  if(strcmp(parser, ext) == 0){
+  	    parser = strtok(NULL, "\n");
+  	    return parser;
+  	  }
+  	}
+  }
+  return "open";
+}
+
+char *open_app(char* command) {
+  char *command_mod = strdup(command);
+  char *token = strtok(command_mod, " ");
+  char *path;
+  char *ext;
+  char *app;
+  char* res;
+
+  while (token != NULL) {
+    ext = token;
+    token = strtok(NULL, ".");
+  }
+
+  command_mod = strdup(command);
+  token = strtok(command_mod, " ");
+  path = strtok(NULL, " ");
+  app = matchExt(ext);
+  res = (char*)malloc( sizeof(char)*(strlen(app) + 1 + strlen(path)) );
+  strcpy(res, app);
+  strcat(res, " ");
+  strcat(res, path);
+  return res;
+}
+
+void notify(struct tm td, char* message) {
+  printf("\n************************\n%s%s\n************************\n\n", asctime(&td), message);
+}
+
+void copy_file(char *sor, char *dest) {
+  char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+  FILE *sorstream = fopen(sor, "r");
+  FILE *deststream = fopen(dest, "w");
+  
+  if(sorstream != NULL) {
+    while ((read = getline(&line, &len, sorstream)) != -1) {
+      fprintf(deststream, "%s", line);
+    }
+  }
+  
+  fclose(sorstream);
+  fclose(deststream);
+}
+
+void insertAlarm(char* timestr) {
+  struct tm td;
+  time_t t;
+  FILE *stream;
+  strptime(timestr, "%H:%M:%S::%Y-%m-%d", &td);
+  
+  t = mktime(&td);
+  
+  stream = fopen("alarm.txt", "a");
+  if(stream == NULL) {
+    perror("Error opening file.");
+  }
+  else{
+    fprintf(stream, "%d:%d:%d::%d-%d-%d\n", td.tm_hour, td.tm_min, td.tm_sec, td.tm_year + 1900, td.tm_mon + 1,td.tm_mday); 
+    notify(td, "Alarm Created");
+  }
+  // prompt();
+  fclose(stream);
+}
+
+void checkAlarm() {
+  FILE *stream;
+  FILE *temp;
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+	struct tm td;
+	time_t now = time(NULL);
+	
+	while(1) {
+  	stream = fopen("alarm.txt", "r");
+  	temp = fopen("alarmtemp.txt","w");
+  	if (stream != NULL) {
+    	while ((read = getline(&line, &len, stream)) != -1) {
+    		strptime(line, "%H:%M:%S::%Y-%m-%d", &td);
+    		
+    		if(difftime(mktime(&td), now)<=0.0)
+    		  notify(td, "Alarm Triggered");
+    		else
+    		  fprintf(temp, "%s", line);
+          // prompt();
+    	}
+    	fclose(temp);
+    	fclose(stream);
+    	copy_file("alarmtemp.txt", "alarm.txt");
+    }
+  	sleep(1);
+	}
+	free(line);
+}
+
+void alarm()
+{
+  int pid;
+  if(fork() == 0) {
+    checkAlarm();
+  }
+  else{
+    //insert in this format "HH:mm:ss::YYYY-MM-DD"
+    insertAlarm("18:39:01::2019-09-09");
+    insertAlarm("18:37:01::2020-09-09");
+    // while(1){
+    //   printf("a\n");
+    //   sleep(2);
+    // }
+  }
+}
+
+// void main() {
+//   
+
+void prompt()
+{
+  if(root)
+  {
+    printf("root#");
+  }
+  else
+  {
+    printf("user$");
+  }
+  
 }
